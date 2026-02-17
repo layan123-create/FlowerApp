@@ -128,16 +128,6 @@
                 android:textStyle="bold"
                 android:textColor="@android:color/white"/>
 
-            <Button
-                android:id="@+id/btnLoginGuest"
-                android:layout_width="match_parent"
-                android:layout_height="54dp"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/outline_soft"
-                android:text="Continue as Guest"
-                android:textAllCaps="false"
-                android:textStyle="bold"
-                android:textColor="@color/textMain"/>
 
             <TextView
                 android:id="@+id/tvGoRegister"

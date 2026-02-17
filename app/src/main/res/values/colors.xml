@@ -7,6 +7,12 @@
 
     <color name="primaryFlower">#E85CA8</color>
     <color name="primaryFlowerDark">#C9468A</color>
+    <color name="bg_main">#F7F6FF</color>
+    <color name="soft_pink">#F8C8DC</color>
+    <color name="soft_mint">#DFF5EC</color>
+    <color name="soft_yellow">#FFF4CC</color>
+    <color name="card_white">#FFFFFF</color>
+    <color name="text_dark">#333333</color>
 
     <color name="textMain">#1F2937</color>
     <color name="textHint">#6B7280</color>
