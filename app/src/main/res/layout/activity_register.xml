@@ -30,13 +30,6 @@
                 android:textSize="18sp"
                 android:textColor="@color/textMain"/>
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Join and start ordering bouquets 🌷"
-                android:layout_marginTop="4dp"
-                android:textSize="13sp"
-                android:textColor="@color/textHint"/>
 
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/tilName"

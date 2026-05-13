@@ -1,64 +1,199 @@
 package com.example.flower;
 
 import android.os.Bundle;
+import android.widget.Button;
+import android.widget.TextView;
+import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
-/**
- * A simple {@link Fragment} subclass.
- * Use the {@link CartFragment#newInstance} factory method to
- * create an instance of this fragment.
- */
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
+
+import java.util.ArrayList;
+import java.util.Locale;
+import android.content.Intent;
 public class CartFragment extends Fragment {
 
-    // TODO: Rename parameter arguments, choose names that match
-    // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
-    private static final String ARG_PARAM1 = "param1";
-    private static final String ARG_PARAM2 = "param2";
+    private RecyclerView recyclerCart;
+    private TextView tvTotalPrice;
 
-    // TODO: Rename and change types of parameters
-    private String mParam1;
-    private String mParam2;
+    private ArrayList<Flower> cartList;
+    private CartAdapter cartAdapter;
+    private Button btnPayNow;
+
+    private FirebaseAuth mAuth;
+    private DatabaseReference cartRef;
+    private DatabaseReference flowersRef;
 
     public CartFragment() {
         // Required empty public constructor
     }
 
-    /**
-     * Use this factory method to create a new instance of
-     * this fragment using the provided parameters.
-     *
-     * @param param1 Parameter 1.
-     * @param param2 Parameter 2.
-     * @return A new instance of fragment CartFragment.
-     */
-    // TODO: Rename and change types and number of parameters
-    public static CartFragment newInstance(String param1, String param2) {
-        CartFragment fragment = new CartFragment();
-        Bundle args = new Bundle();
-        args.putString(ARG_PARAM1, param1);
-        args.putString(ARG_PARAM2, param2);
-        fragment.setArguments(args);
-        return fragment;
-    }
-
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        if (getArguments() != null) {
-            mParam1 = getArguments().getString(ARG_PARAM1);
-            mParam2 = getArguments().getString(ARG_PARAM2);
-        }
-    }
-
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
-        // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.fragment_cart, container, false);
+
+        View view = inflater.inflate(R.layout.fragment_cart, container, false);
+
+        recyclerCart = view.findViewById(R.id.recyclerCart);
+        tvTotalPrice = view.findViewById(R.id.tvTotalPrice);
+        btnPayNow = view.findViewById(R.id.btnPayNow);
+        recyclerCart.setLayoutManager(new LinearLayoutManager(getContext()));
+        cartList = new ArrayList<>();
+        btnPayNow.setOnClickListener(v -> {
+            double total = 0.0;
+
+            for (Flower flower : cartList) {
+                total += flower.getPrice() * flower.getQuantity();
+            }
+
+            if (total <= 0) {
+                Toast.makeText(getContext(), "Your cart is empty", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            Intent intent = new Intent(getContext(), PaymentActivity.class);
+            intent.putExtra("totalPrice", total);
+            startActivity(intent);
+        });
+        cartAdapter = new CartAdapter(getContext(), cartList, new CartAdapter.OnCartActionListener() {
+            @Override
+            public void onDeleteCartItem(Flower flower, int position) {
+                deleteCartItemFromFirebase(flower);
+            }
+        });
+
+        recyclerCart.setAdapter(cartAdapter);
+
+        mAuth = FirebaseAuth.getInstance();
+
+        if (mAuth.getCurrentUser() != null) {
+            String userId = mAuth.getCurrentUser().getUid();
+            cartRef = FirebaseDatabase.getInstance().getReference("Cart").child(userId);
+            flowersRef = FirebaseDatabase.getInstance().getReference("Flowers");
+            loadCartItems();
+        } else {
+            Toast.makeText(getContext(), "Please login first", Toast.LENGTH_SHORT).show();
+        }
+
+        return view;
+    }
+
+    private void loadCartItems() {
+        cartRef.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                cartList.clear();
+                cartAdapter.notifyDataSetChanged();
+                updateTotalPrice();
+
+                if (!snapshot.exists()) {
+                    return;
+                }
+
+                final int[] remaining = {(int) snapshot.getChildrenCount()};
+
+                for (DataSnapshot cartItemSnapshot : snapshot.getChildren()) {
+                    String flowerId = cartItemSnapshot.getKey();
+                    Integer quantity = cartItemSnapshot.getValue(Integer.class);
+
+                    if (flowerId != null && quantity != null) {
+                        flowersRef.child(flowerId).addListenerForSingleValueEvent(new ValueEventListener() {
+                            @Override
+                            public void onDataChange(@NonNull DataSnapshot flowerSnapshot) {
+                                Flower flower = flowerSnapshot.getValue(Flower.class);
+
+                                if (flower != null) {
+                                    flower.setQuantity(quantity);
+                                    cartList.add(flower);
+                                }
+
+                                remaining[0]--;
+                                if (remaining[0] == 0) {
+                                    cartAdapter.notifyDataSetChanged();
+                                    updateTotalPrice();
+                                }
+                            }
+
+                            @Override
+                            public void onCancelled(@NonNull DatabaseError error) {
+                                remaining[0]--;
+                                if (remaining[0] == 0) {
+                                    cartAdapter.notifyDataSetChanged();
+                                    updateTotalPrice();
+                                }
+                            }
+                        });
+                    } else {
+                        remaining[0]--;
+                        if (remaining[0] == 0) {
+                            cartAdapter.notifyDataSetChanged();
+                            updateTotalPrice();
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Toast.makeText(getContext(), "Failed to load cart", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+    private void loadFlowerDetails(String flowerId, int quantity) {
+        flowersRef.child(flowerId).addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                Flower flower = snapshot.getValue(Flower.class);
+
+                if (flower != null) {
+                    flower.setQuantity(quantity);
+                    cartList.add(flower);
+                    cartAdapter.notifyDataSetChanged();
+                    updateTotalPrice();
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {
+                Toast.makeText(getContext(), "Failed to load flower details", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void updateTotalPrice() {
+        double total = 0.0;
+
+        for (Flower flower : cartList) {
+            total += flower.getPrice() * flower.getQuantity();
+        }
+
+        tvTotalPrice.setText("$" + String.format(Locale.US, "%.2f", total));
+    }
+
+    private void deleteCartItemFromFirebase(Flower flower) {
+        if (cartRef == null || flower.getId() == null || flower.getId().isEmpty()) {
+            Toast.makeText(getContext(), "Delete failed", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        cartRef.child(flower.getId()).removeValue()
+                .addOnSuccessListener(unused ->
+                        Toast.makeText(getContext(), "Item removed from cart", Toast.LENGTH_SHORT).show())
+                .addOnFailureListener(e ->
+                        Toast.makeText(getContext(), "Failed to remove item", Toast.LENGTH_SHORT).show());
     }
 }

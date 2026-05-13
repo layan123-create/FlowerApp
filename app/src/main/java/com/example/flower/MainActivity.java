@@ -40,6 +40,8 @@ public class MainActivity extends AppCompatActivity {
                 fragment = new Home_Fragment();
             else if (item.getItemId() == R.id.nav_cart)
                 fragment = new CartFragment();
+            else if (item.getItemId() == R.id.nav_favorite)
+                fragment = new FavoriteFragment();
             else if (item.getItemId() == R.id.nav_profile)
                 fragment = new ProfileFragment();
 
